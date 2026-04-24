@@ -1,6 +1,6 @@
 # Reverse Proxy Architecture with Docker and Nginx
 
-This project demonstrates a simple reverse proxy architecture built with Docker, Nginx, a static frontend, and a Node.js API.
+This project demonstrates a reverse proxy architecture built with Docker Compose, Nginx, a static frontend, a Node.js API, PostgreSQL, and Redis.
 
 The goal is to show how a single entry point can:
 
@@ -17,6 +17,7 @@ The stack is organized around one main Nginx reverse proxy:
 - `backend/`: Node.js API exposing `/health` and `/data`
 - `nginx/`: main reverse proxy configuration
 - `backend/nginx/`: simpler proxy example that forwards all traffic to one API container
+- `docker-compose.yml`: orchestrates the full multi-container stack
 
 High-level request flow:
 
@@ -28,9 +29,9 @@ Client Browser
      |------------------------------> /        -> Frontend container
      |
      |------------------------------> /api/*   -> Backend API pool
-                                                   |- API 1
-                                                   |- API 2
-                                                   \- API 3
+                                                   |- backend-1
+                                                   |- backend-2
+                                                   \- backend-3
 ```
 
 ## How Routing Works
@@ -46,6 +47,8 @@ The main reverse proxy configuration is based on `nginx/nginx.conf.template`.
   - `X-Forwarded-For`
   - `X-Forwarded-Proto`
 
+In the Compose setup, the backend containers also communicate with `postgres` and `redis` on the private `backend-net` network, while Nginx and the frontend stay on `proxy-net`.
+
 This means the browser only talks to Nginx, while Nginx communicates with the internal services.
 
 ## Project Structure
@@ -53,6 +56,7 @@ This means the browser only talks to Nginx, while Nginx communicates with the in
 ```text
 docker/
 ├── README.md
+├── docker-compose.yml
 ├── nginx/
 │   └── nginx.conf.template
 ├── frontend/
@@ -113,64 +117,72 @@ Example responses:
 
 This is the most complete example in the repository.
 
+The upstream targets in this configuration match the services declared in `docker-compose.yml`.
+
+### 2. Backend-only proxy
+
+`backend/nginx/nginx.conf` and `backend/nginx/nginx.conf.template` show a simpler setup where Nginx forwards everything to a single API container.
+
 This version is useful if you want to understand reverse proxy basics before adding a frontend and multiple backend instances.
 
-## Run the Project with Docker
+## Run the Project with Docker Compose
 
-There is no `docker-compose.yml` in the repository at the moment, so the stack can be started manually with Docker commands.
+The recommended way to run the project is with `docker-compose.yml`.
 
-### 1. Create a Docker network
-
-```bash
-docker network create reverse-proxy-net
-```
-
-### 2. Build the images
+### 1. Start the stack
 
 ```bash
-docker build -t frontend ./frontend
-docker build -t backend ./backend
+docker compose up --build
 ```
 
-### 3. Start frontend container
+### 2. Run in detached mode
 
 ```bash
-docker run -d --name frontend --network reverse-proxy-net -p 8081:80 frontend
+docker compose up -d --build
 ```
 
-### 4. Start multiple backend containers
+### 3. Stop the stack
 
 ```bash
-docker run -d --name api1 --network reverse-proxy-net backend
-docker run -d --name api2 --network reverse-proxy-net backend
-docker run -d --name api3 --network reverse-proxy-net backend
+docker compose down
 ```
 
-### 5. Start the main Nginx reverse proxy
+### 4. Stop and remove volumes
 
-Use environment variables that match `nginx/nginx.conf.template`.
-
-Example:
-
-```powershell
-docker run -d --name reverse-proxy --network reverse-proxy-net -p 8080:80 -e FRONTEND_HOST=frontend -e FRONTEND_PORT=80 -e API_HOST_1=api1 -e API_PORT_1=3000 -e API_HOST_2=api2 -e API_PORT_2=3000 -e API_HOST_3=api3 -e API_PORT_3=3000 -v "${PWD}/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro" nginx:alpine
+```bash
+docker compose down -v
 ```
 
-If Docker does not resolve `${PWD}` correctly on your machine, replace it with the full absolute path to `nginx/nginx.conf.template`.
+## Services Started by Compose
+
+The Compose file starts these services:
+
+- `nginx-proxy`: public entry point on port `80`
+- `frontend`: static client application
+- `backend-1`, `backend-2`, `backend-3`: API instances used by the reverse proxy upstream
+- `postgres`: relational database
+- `redis`: cache or fast in-memory service
+
+It also creates:
+
+- `proxy-net`: network between the proxy, frontend, and API services
+- `backend-net`: private network between the API services, PostgreSQL, and Redis
+- `postgres-data`: persistent PostgreSQL volume
+- `redis-data`: persistent Redis volume
 
 ## Test the Architecture
 
 After startup:
 
-- open `http://localhost:8080`
+- open `http://localhost`
 - click `Check Health`
 - click `Load Data`
 
 You can also test directly:
 
 ```bash
-curl http://localhost:8080/api/health
-curl http://localhost:8080/api/data
+curl http://localhost/api/health
+curl http://localhost/api/data
 ```
 
 ## Why This Architecture Is Useful
@@ -187,7 +199,6 @@ This reverse proxy pattern is common because it:
 
 If you want to take this project further, you can add:
 
-- a `docker-compose.yml` file
 - health checks for backend containers
 - HTTPS with TLS certificates
 - round-robin demonstration with backend instance IDs
