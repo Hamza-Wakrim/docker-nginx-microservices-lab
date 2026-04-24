@@ -1,15 +1,18 @@
+upstream backend_api {
+    server ${API_HOST_1}:${API_PORT_1};
+    server ${API_HOST_2}:${API_PORT_2};
+    server ${API_HOST_3}:${API_PORT_3};
+}
+
 server {
     listen 80;
 
     location / {
         proxy_pass http://${FRONTEND_HOST}:${FRONTEND_PORT};
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
     }
 
     location /api/ {
-        proxy_pass http://${API_HOST}:${API_PORT}/;
+        proxy_pass http://backend_api/;
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
