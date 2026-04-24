@@ -1,0 +1,40 @@
+---
+- name: Manage Docker app
+  hosts: local
+  become: false
+
+  vars:
+    project_dir: "{{ playbook_dir }}/.."
+    action: "start"
+
+  tasks:
+    - name: Create logs folder
+      file:
+        path: "{{ project_dir }}/logs/nginx"
+        state: directory
+        mode: "0755"
+      when: action == "start"
+
+    - name: Start app
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ project_dir }}"
+      when: action == "start"
+
+    - name: Stop app
+      command: docker compose down
+      args:
+        chdir: "{{ project_dir }}"
+      when: action == "stop"
+
+    - name: Restart app
+      command: docker compose restart
+      args:
+        chdir: "{{ project_dir }}"
+      when: action == "restart"
+
+    - name: Show status
+      command: docker compose ps
+      args:
+        chdir: "{{ project_dir }}"
+      when: action == "status"
