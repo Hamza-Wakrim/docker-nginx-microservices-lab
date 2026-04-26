@@ -8,13 +8,13 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    service: 'minimal-node-api'
+    service: 'simple node api'
   });
 });
 
 app.get('/data', (req, res) => {
   res.status(200).json({
-    message: 'Voici les données de test',
+    message: 'Simple api of node',
     items: [
       { id: 1, name: 'Post 1' },
       { id: 2, name: 'Post 2' }
